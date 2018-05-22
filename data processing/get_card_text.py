@@ -18,11 +18,8 @@ file_name = 'AllCards-x.json'
 with open(file_path + file_name) as data_file:
     json_data = json.load(data_file)
 
-def get_card_text(card_name):
-    if('text' in json_data[card_name]):
-        return json_data[card_name]['text'].lower()
-    else:
-        return '<NONE>'
+def get_field(name, field):
+    return json_data[name].get(field) if json_data[name].get(field) else '<NA>'
     
 def clean_name(card_name):
     clean = re.sub('[,\- \']', '', card_name)
@@ -30,15 +27,38 @@ def clean_name(card_name):
     return clean
 
 card_names = list(json_data.keys())
-card_texts = list(map(lambda x: get_card_text(x), card_names))
 card_names_clean = list(map(lambda x: clean_name(x), card_names))
+
+manaCost =  list(map(lambda x: get_field(x, 'manaCost'), card_names))
+colors =    list(map(lambda x: get_field(x, 'colors'), card_names))
+layout =    list(map(lambda x: get_field(x, 'layout'), card_names))
+supertype = list(map(lambda x: get_field(x, 'type'), card_names))
+types =     list(map(lambda x: get_field(x, 'types'), card_names))
+power =     list(map(lambda x: get_field(x, 'power'), card_names))
+toughness = list(map(lambda x: get_field(x, 'toughness'), card_names))
+printings = list(map(lambda x: get_field(x, 'printings'), card_names))
+text =      list(map(lambda x: get_field(x, 'text'), card_names))
+
 
 output = pd.DataFrame({
     'card_name': card_names_clean,
-    'java_code': card_texts,
+    'manaCost': manaCost,
+    'layout': layout,
+    'colors': colors,
+    'type': supertype,
+    'types': types,
+    'power': power,
+    'toughness': toughness,
+    'printings': printings,
+    'text': text,
 })
-
     
 output_file_path = '/Users/josephhiggins/Documents/mtg/mungeddata/'
 file_name = 'card_name_to_card_text.pkl'
 output.to_pickle(output_file_path + file_name)
+
+
+#text[card_names.index('Wojek Siren')]
+#text[card_names.index('Grizzly Bears')]
+#json_data['Wojek Siren']
+#json_data['Grizzly Bears']
