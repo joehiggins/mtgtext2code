@@ -12,11 +12,14 @@ import math
 file_path = '/Users/josephhiggins/Documents/mtg/mungeddata/'
 file_name = 'card_name_to_card_text.pkl'
 text = pd.read_pickle(file_path + file_name)
+file_name = 'card_name_to_encoded_text.pkl'
+encoded_text = pd.read_pickle(file_path + file_name)
 file_name = 'card_name_to_java_code.pkl'
 code = pd.read_pickle(file_path + file_name)
 
 text_code = pd.DataFrame()
 text_code = pd.merge(text, code, on='card_name', how='inner')
+text_code = pd.merge(text_code, encoded_text, on='card_name', how='inner')
 
 #remove unstable (joke set)
 def check_list_members(x, member):
