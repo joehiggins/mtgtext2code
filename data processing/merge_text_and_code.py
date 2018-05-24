@@ -34,7 +34,7 @@ text_code = text_code[total_filter]
 
 output_file_path = '/Users/josephhiggins/Documents/mtg/mungeddata/'
 file_name = 'merged_text_and_code.pkl'
-output.to_pickle(output_file_path + file_name)
+text_code.to_pickle(output_file_path + file_name)
 
 #list(text_code[text_code['card_name'] == 'grizzlybears']['java_code'])
 #list(text_code[text_code['card_name'] == 'adorablekitten']['printings'])

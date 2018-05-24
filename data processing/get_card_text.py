@@ -21,13 +21,19 @@ with open(file_path + file_name) as data_file:
 def get_field(name, field):
     return json_data[name].get(field) if json_data[name].get(field) else '<NA>'
     
-def clean_name(card_name):
+def clean_lower_no_char(card_name):
     clean = re.sub('[,\- \']', '', card_name)
     clean = clean.lower()
     return clean
 
+def clean_lower(card_name):
+    clean = card_name.lower()
+    return clean
+
+
 card_names = list(json_data.keys())
-card_names_clean = list(map(lambda x: clean_name(x), card_names))
+card_names_lower_no_char = list(map(lambda x: clean_lower_no_char(x), card_names))
+card_names_lower = list(map(lambda x: clean_lower(x), card_names))
 
 manaCost =  list(map(lambda x: get_field(x, 'manaCost'), card_names))
 colors =    list(map(lambda x: get_field(x, 'colors'), card_names))
@@ -41,7 +47,8 @@ text =      list(map(lambda x: get_field(x, 'text'), card_names))
 
 
 output = pd.DataFrame({
-    'card_name': card_names_clean,
+    'card_name': card_names_lower_no_char,
+    'card_name_self': card_names_lower,
     'manaCost': manaCost,
     'layout': layout,
     'colors': colors,
