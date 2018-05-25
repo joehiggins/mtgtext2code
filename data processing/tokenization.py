@@ -5,14 +5,15 @@ Created on Fri May 25 12:41:20 2018
 
 @author: josephhiggins
 """
+from keras.preprocessing.text import Tokenizer
 
 file_path = '/Users/josephhiggins/Documents/mtg/mungeddata/'
 file_name = 'merged_text_and_code.pkl'
 data = pd.read_pickle(file_path + file_name)
 '''
-data[data['card_name'] == 'fireservant'].index[0]
-print(data.loc[988]['java_code'])
-print(java_encoded[988])
+idx = data[data['card_name'] == 'sphinxofthechimes'].index[0]
+print(data.loc[idx]['java_code'])
+print(java_encoded[idx])
 '''
 java_encoded = data['java_code']
 card_names = data['card_name']
@@ -39,6 +40,8 @@ if not [x for x in test if x != -1]:
 java_encoded = list(map(lambda x: x[0].replace(x[1], symb),
                         zip(java_encoded,card_names)))
 
+#JCH TODO: perhaps add carets ^^^ for power and toughness indicators?
+
 #extract tokens
 #define up front what i think are good tokens if i say so myself
 #order matters, start with super sets before subsets
@@ -49,7 +52,7 @@ pre_defined_tokens = [
     '<i>','</i>','$effect','\'.\'',
     '()','[]',
     '&&','||','!=','==','++','+=','--','-=',
-    '{','}','(',')','\n','$',';',',','?','"',".","=","+"
+    '{','}','(',')','\n','$',';',',','?','"','.','=','+','~'
 ]
 
 #remove what i think are good tokens in a copy of text to extract the rest of 
@@ -60,15 +63,24 @@ def remove_pd_tokens(line):
     line = ' '.join(line.split())
     return line
 
-stripped_java = list(map(lambda x:, remove_pd_tokens)
+stripped_java = list(map(lambda x: remove_pd_tokens(x), java_encoded))
 
+
+for i in range(0,len(stripped_java)):
+    if stripped_java[i].find('discardtwononlandcardswiththesamenamecost') > -1:
+        print(i)
+
+print(data.loc[8086]['java_code'])
+print(java_encoded[8086])
 
 #
-tokenizer = Tokenizer(num_words=None
-        lower=True, 
-        #split=' ', 
-        char_level=False)
-    tokenizer.fit_on_texts(lines)
+stripped_tokenizer = Tokenizer(num_words=None,
+                               lower=True,
+                               split=' ',
+                               char_level=False)
+
+stripped_tokenizer.fit_on_texts(stripped_java)
+stripped_tokenizer.word_index.keys()
 
 
 output_file_path = '/Users/josephhiggins/Documents/mtg/mungeddata/'
