@@ -19,6 +19,7 @@ from parsing import Grammar, Rule
 
 import pandas as pd
 import numpy as np
+import sys
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 from keras.utils import to_categorical
@@ -29,10 +30,16 @@ from keras.layers import Dense
 from keras.layers import Embedding
 from keras.layers import RepeatVector
 from keras.layers import TimeDistributed
+from keras.layers import Flatten
 from keras.callbacks import ModelCheckpoint
 from keras.models import load_model
 from nltk.translate.bleu_score import corpus_bleu
 from unicodedata import normalize
+import tensorflow as tf
+
+# Just disables the warning, doesn't enable AVX/FMA
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 file_path = '/Users/josephhiggins/Documents/mtg/mungeddata/'
 file_name = 'merged_text_and_code.pkl'
@@ -44,7 +51,7 @@ data = data[0:200]
 # fit a tokenizer
 def create_tokenizer(lines):
     tokenizer = Tokenizer(
-        num_words=None, 
+        num_words=None, #None is default, run out of memory
         #filters='!"#$%&()*+,-./:;<=>?@[\]^_`{|}~ ', 
         lower=True, 
         #split=' ', 
@@ -85,15 +92,14 @@ text_vocab_size = len(text_tokenizer.word_index) + 1
 java_vocab_size = len(java_tokenizer.word_index) + 1
 
 #encode sequences to tokenizers
-X,     x_max_len = encode_sequences(text_tokenizer, data_text_clean)
-Y_seq, y_max_len = encode_sequences(java_tokenizer, data_java_clean)
+X, x_max_len = encode_sequences(text_tokenizer, data_text_clean)
+Y, y_max_len = encode_sequences(java_tokenizer, data_java_clean)
 
 ###############
 ###############
 ###############
 # one hot encode target sequence
-Y = encode_output(Y_seq, java_vocab_size)
-
+#Y = encode_output(Y_seq, java_vocab_size)
 
 #print out stats of cleaned and tokenized inputs
 text_length = x_max_len
@@ -113,13 +119,13 @@ validY = Y[split_idx:len(data)]
 
 # define NMT model
 def define_model(src_vocab, tar_vocab, src_timesteps, tar_timesteps, n_units):
-	model = Sequential()
-	model.add(Embedding(src_vocab, n_units, input_length=src_timesteps, mask_zero=True))
-	model.add(LSTM(n_units))
-	model.add(RepeatVector(tar_timesteps))
-	model.add(LSTM(n_units, return_sequences=True))
-	model.add(TimeDistributed(Dense(tar_vocab, activation='softmax')))
-	return model
+    model = Sequential()
+    model.add(Embedding(src_vocab, n_units, input_length=src_timesteps, mask_zero=True))
+    model.add(LSTM(n_units))
+    model.add(RepeatVector(tar_timesteps))
+    model.add(LSTM(n_units, return_sequences=True))
+    model.add(TimeDistributed(Dense(tar_vocab, activation='softmax')))
+    return model
 
 # define model
 model = define_model(text_vocab_size, 
@@ -128,7 +134,7 @@ model = define_model(text_vocab_size,
                      java_length, 
                      256)
 
-model.compile(optimizer='adam', loss='categorical_crossentropy')
+model.compile(optimizer='adam', loss='sparse_categorical_crossentropy')
 # summarize defined model
 print(model.summary())
 #plot_model(model, to_file='model.png', show_shapes=True)
@@ -141,10 +147,13 @@ checkpoint = ModelCheckpoint(filename,
                              save_best_only=True, 
                              mode='min')
 
-model.fit(trainX, trainY, 
-          epochs=20,
+trainY_exp = np.expand_dims(trainY,-1)
+validY_exp = np.expand_dims(validY,-1)
+
+model.fit(trainX, trainY_exp, 
+          epochs=3,
           batch_size=10, 
-          validation_data=(validX, validY), 
+          validation_data=(validX, validY_exp), 
           #callbacks=[checkpoint], 
           verbose=1)
 
