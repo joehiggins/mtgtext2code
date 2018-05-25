@@ -30,7 +30,6 @@ from keras.layers import Dense
 from keras.layers import Embedding
 from keras.layers import RepeatVector
 from keras.layers import TimeDistributed
-from keras.layers import Flatten
 from keras.callbacks import ModelCheckpoint
 from keras.models import load_model
 from nltk.translate.bleu_score import corpus_bleu
@@ -42,7 +41,7 @@ file_name = 'merged_text_and_code.pkl'
 data = pd.read_pickle(file_path + file_name)
 
 ###test small sample
-data = data[0:1]
+data = data[0:5]
 
 # fit a tokenizer
 def create_tokenizer(lines):
@@ -90,7 +89,7 @@ java_vocab_size = len(java_tokenizer.word_index) + 1
 #encode sequences to tokenizers
 X, x_max_len = encode_sequences(text_tokenizer, data_text_clean)
 Y, y_max_len = encode_sequences(java_tokenizer, data_java_clean)
-Y = np.expand_dims(trainY,-1)
+Y = np.expand_dims(Y,-1)
 
 ###############
 ###############
@@ -144,10 +143,10 @@ checkpoint = ModelCheckpoint(filename,
                              save_best_only=True, 
                              mode='min')
 
-model.fit(trainX, trainY_exp, 
-          epochs=3,
-          batch_size=64, 
-          validation_data=(validX, validY_exp), 
+model.fit(trainX, trainY, 
+          epochs=350,
+          batch_size=1, 
+          validation_data=(validX, validY), 
           #callbacks=[checkpoint], 
           verbose=1)
 
@@ -192,11 +191,6 @@ def evaluate_model(model, tokenizer, sources, raw_dataset):
     print('BLEU-3: %f' % corpus_bleu(actual, predicted, weights=(0.3, 0.3, 0.3, 0)))
     print('BLEU-4: %f' % corpus_bleu(actual, predicted, weights=(0.25, 0.25, 0.25, 0.25)))
 
-
-ex = trainX[0].reshape((1, trainX[0].shape[0]))
-predict_sequence(model, java_tokenizer, ex)
-
-
 '''
 evaluate_model(model, java_tokenizer, trainX, list(zip(data_java_clean[0:split_idx],
                                                        data_text_clean[0:split_idx])))
@@ -207,6 +201,29 @@ evaluate_model(model, java_tokenizer, validX, list(zip(data_java_clean[split_idx
 
 '''
 
+
+
+def compare_prediction(index):
+    if(index < split_idx):
+        ex = trainX[index].reshape((1, trainX[index].shape[0]))
+    else:
+        v_index = index - split_idx
+        ex = validX[v_index].reshape((1, validX[v_index].shape[0]))
+    print("INPUT:")
+    print(data_text_clean[index])
+    print("TARGET:")
+    print(data_java_clean[index])
+    print("OUTPUT:")
+    print(predict_sequence(model, java_tokenizer, ex))
+
+compare_prediction(0)
+compare_prediction(1)
+compare_prediction(2)
+compare_prediction(3)
+compare_prediction(4)
+
+#todo: replace card name instances with @ in java
+#todo: keep brackets and parens in the java text
 
 
 
