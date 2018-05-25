@@ -37,16 +37,12 @@ from nltk.translate.bleu_score import corpus_bleu
 from unicodedata import normalize
 import tensorflow as tf
 
-# Just disables the warning, doesn't enable AVX/FMA
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-
 file_path = '/Users/josephhiggins/Documents/mtg/mungeddata/'
 file_name = 'merged_text_and_code.pkl'
 data = pd.read_pickle(file_path + file_name)
 
 ###test small sample
-data = data[0:200]
+data = data[0:1]
 
 # fit a tokenizer
 def create_tokenizer(lines):
@@ -94,6 +90,7 @@ java_vocab_size = len(java_tokenizer.word_index) + 1
 #encode sequences to tokenizers
 X, x_max_len = encode_sequences(text_tokenizer, data_text_clean)
 Y, y_max_len = encode_sequences(java_tokenizer, data_java_clean)
+Y = np.expand_dims(trainY,-1)
 
 ###############
 ###############
@@ -147,12 +144,9 @@ checkpoint = ModelCheckpoint(filename,
                              save_best_only=True, 
                              mode='min')
 
-trainY_exp = np.expand_dims(trainY,-1)
-validY_exp = np.expand_dims(validY,-1)
-
 model.fit(trainX, trainY_exp, 
           epochs=3,
-          batch_size=10, 
+          batch_size=64, 
           validation_data=(validX, validY_exp), 
           #callbacks=[checkpoint], 
           verbose=1)
@@ -199,8 +193,8 @@ def evaluate_model(model, tokenizer, sources, raw_dataset):
     print('BLEU-4: %f' % corpus_bleu(actual, predicted, weights=(0.25, 0.25, 0.25, 0.25)))
 
 
-test = trainX[1].reshape((1, trainX[1].shape[0]))
-predict_sequence(model, java_tokenizer, test)
+ex = trainX[0].reshape((1, trainX[0].shape[0]))
+predict_sequence(model, java_tokenizer, ex)
 
 
 '''
