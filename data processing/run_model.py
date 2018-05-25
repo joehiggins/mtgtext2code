@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Mon May 21 18:01:08 2018
+Created on Fri May 25 12:30:05 2018
 
 @author: josephhiggins
 """
+
 '''
 sys.path.insert(0, '/Users/josephhiggins/Documents/CS 224U/sippycup/')
 from parsing import Grammar, Rule
 '''
-
 
 #https://github.com/billzorn/mtgencode
 #https://github.com/billzorn/mtgencode#training-a-neural-net
@@ -40,13 +40,19 @@ file_path = '/Users/josephhiggins/Documents/mtg/mungeddata/'
 file_name = 'merged_text_and_code.pkl'
 data = pd.read_pickle(file_path + file_name)
 
+###parameters
+num_words = None #None is default
+num_examples = 1
+epoch_num = 1000
+batch_size = 1
+
 ###test small sample
-data = data[0:5]
+data = data[0:num_examples]
 
 # fit a tokenizer
 def create_tokenizer(lines):
     tokenizer = Tokenizer(
-        num_words=None, #None is default, run out of memory
+        num_words=num_words, #None is default
         #filters='!"#$%&()*+,-./:;<=>?@[\]^_`{|}~ ', 
         lower=True, 
         #split=' ', 
@@ -61,20 +67,6 @@ def encode_sequences(tokenizer, lines):
     X = pad_sequences(tokenized, maxlen=max_length, padding='post')
     return X, max_length
 
-def utf8_encode(line):
-    line = normalize('NFD', line).encode('ascii', 'ignore')
-    line = line.decode('UTF-8')
-    return line
-
-# one hot encode target sequence
-def encode_output(sequences, vocab_size):
-	ylist = list()
-	for sequence in sequences:
-		encoded = to_categorical(sequence, num_classes=vocab_size)
-		ylist.append(encoded)
-	y = np.array(ylist)
-	y = y.reshape(sequences.shape[0], sequences.shape[1], vocab_size)
-	return y
 
 #clean text into utf-8
 data_text_clean = list(map(lambda x: utf8_encode(x), data['mtgencoded_text']))
@@ -83,19 +75,18 @@ data_java_clean = list(map(lambda x: utf8_encode(x), data['java_code']))
 # prepare tokenizers
 text_tokenizer = create_tokenizer(data_text_clean)
 java_tokenizer = create_tokenizer(data_java_clean)
-text_vocab_size = len(text_tokenizer.word_index) + 1
-java_vocab_size = len(java_tokenizer.word_index) + 1
 
+if(num_words is None):
+    text_vocab_size = len(text_tokenizer.word_index) + 1
+    java_vocab_size = len(java_tokenizer.word_index) + 1
+else: 
+    text_vocab_size = num_words
+    java_vocab_size = num_words
+    
 #encode sequences to tokenizers
 X, x_max_len = encode_sequences(text_tokenizer, data_text_clean)
 Y, y_max_len = encode_sequences(java_tokenizer, data_java_clean)
 Y = np.expand_dims(Y,-1)
-
-###############
-###############
-###############
-# one hot encode target sequence
-#Y = encode_output(Y_seq, java_vocab_size)
 
 #print out stats of cleaned and tokenized inputs
 text_length = x_max_len
@@ -106,7 +97,7 @@ print('Java Vocabulary Size: %d' % java_vocab_size)
 print('Java Max Length: %d' % (java_length))
 
 #test/validation split
-split_idx = round(len(data) * 0.80)
+split_idx = round(len(data) * 0.90)
 trainX = X[0:split_idx]
 validX = X[split_idx:len(data)]
 trainY = Y[0:split_idx]
@@ -144,16 +135,14 @@ checkpoint = ModelCheckpoint(filename,
                              mode='min')
 
 model.fit(trainX, trainY, 
-          epochs=350,
-          batch_size=1, 
+          #callbacks=[checkpoint],
+          epochs=epoch_num,
+          batch_size=batch_size, 
           validation_data=(validX, validY), 
-          #callbacks=[checkpoint], 
           verbose=1)
-
 
 #Evaluation
 #model = load_model('model.h5')
-
 # map an integer to a word
 def word_for_id(integer, tokenizer):
 	for word, index in tokenizer.word_index.items():
@@ -224,12 +213,14 @@ compare_prediction(4)
 
 #todo: replace card name instances with @ in java
 #todo: keep brackets and parens in the java text
-
-
-
-
-
-
-
+'''
+from keras.models import model_from_json
+model_json = model.to_json()
+with open("model.json", "w") as json_file:
+    json_file.write(model_json)
+# serialize weights to HDF5
+model.save_weights("model.h5")
+print("Saved model to disk")
+'''
 
 
