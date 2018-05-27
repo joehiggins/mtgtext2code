@@ -7,6 +7,7 @@ Created on Mon May 21 15:31:49 2018
 """
 
 import pandas as pd
+import numpy as np
 import math
 
 file_path = '/Users/josephhiggins/Documents/mtg/mungeddata/'
@@ -34,6 +35,12 @@ UNH_filter = list(map(lambda x: not check_list_members(x, 'UNH'), text_code['pri
 UGL_filter = list(map(lambda x: not check_list_members(x, 'UGL'), text_code['printings']))
 total_filter = [ust and unh and ugl for ust, unh, ugl in zip(UST_filter,UNH_filter,UGL_filter)]
 text_code = text_code[total_filter]
+
+#remove very long java examples(~11% of all examples at 2000)
+java_lengths = list(map(lambda x: len(x), text_code['java_code']))
+short_indexes = [True if x < 2000 else False for x in java_lengths] 
+text_code = text_code[short_indexes]
+##sum(short_indexes)/len(short_indexes)
 
 output_file_path = '/Users/josephhiggins/Documents/mtg/mungeddata/'
 file_name = 'merged_text_and_code.pkl'

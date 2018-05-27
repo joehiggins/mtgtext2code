@@ -17,6 +17,13 @@ from parsing import Grammar, Rule
 #https://github.com/minimaxir/char-embeddings/blob/master/create_magic_text.py
 #https://machinelearningmastery.com/develop-neural-machine-translation-system-keras/
 
+#JCH ideas:
+##dont predict parens and brackets, since those can be filled in with syntax
+##character level tokenization
+##shuffle data
+##sippycup
+
+
 import pandas as pd
 import numpy as np
 import sys
@@ -45,17 +52,17 @@ token_key_java_original = open_pickle('java_token_key.pkl')
 token_key_text_original = open_pickle('text_token_key.pkl')
 
 ###parameters
-num_examples = 2
+num_examples = 5 #len(sequences_text_full)
+num_words_text = 350
+num_words_java = 350
 epoch_num = 1000
 batch_size = 1
 
-###test small sample
+###take a subset of the data based on num_examples
 sequences_text = sequences_text_full[0:num_examples]
 sequences_java = sequences_java_full[0:num_examples]
 
 #update tokens based on the data sample we use
-##add spaces
-
 ##get unique tokens in data subset
 def remove_keys_not_used(sequences, token_key):
     flat = [item for sublist in sequences for item in sublist]
@@ -80,9 +87,30 @@ sequences_java = list(map(lambda x: re_sequence(x, new_idxs_java), sequences_jav
 token_key_text = dict(zip(range(1,len(token_key_text)+1), token_key_text.values()))
 token_key_java = dict(zip(range(1,len(token_key_java)+1), token_key_java.values()))
 
+##remove tokens beyond desired number of words
+def remove_n_lowest_freq_keys(token_key, num_words):
+    tokens_to_remove = list(range(num_words+1,len(token_key)+1))
+    for token in tokens_to_remove:
+        token_key.pop(token, None)
+    return token_key
+
+token_key_text = remove_n_lowest_freq_keys(token_key_text.copy(), num_words_text)
+token_key_java = remove_n_lowest_freq_keys(token_key_java.copy(), num_words_java)
+
+def UNKify_sequence(token_list, num_words):
+    return [num_words+1 if token > num_words else token for token in token_list]
+
+sequences_text = list(map(lambda x: UNKify_sequence(x, num_words_text), sequences_text))
+sequences_java = list(map(lambda x: UNKify_sequence(x, num_words_java), sequences_java))
+
+##add the UNK key
+token_key_java.update({num_words_text+1:'<UNK>'})
+token_key_text.update({num_words_java+1:'<UNK>'})
 ##add the empty padding key 
 token_key_java.update({0:''})
 token_key_text.update({0:''})
+
+#get vocab size
 vocab_size_java = len(token_key_java)
 vocab_size_text = len(token_key_text)
     
@@ -205,7 +233,8 @@ def compare_prediction(index):
     print("INPUT:")
     print(' '.join(re_sequence(sequences_text_full[index], token_key_text_original)))
     print("TARGET:")
-    print(' '.join(re_sequence(sequences_java_full[index], token_key_java_original)))
+    #print(' '.join(re_sequence(sequences_java_full[index], token_key_java_original)))
+    print(' '.join(re_sequence(sequences_java[index], token_key_java)))
     print("OUTPUT:")
     print(predict_sequence(model, ex))
 

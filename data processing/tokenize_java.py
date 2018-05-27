@@ -83,8 +83,18 @@ space_mwes = [
     ('public','class','$','extends'),
     ('public','$', 'copy()'),
     ('return','new','$(this)'),
+    ('public','$', 'copy'),
+    ('return','new','$this'),
+
 ]
 
+chars_to_remove = [
+    '(',')','.','{','}',',',
+]
+
+seqs_to_insert_spaces_for = [
+   '.','/','++',
+]
 #create tokenizers
 no_space_mwe_tokenizer = MWETokenizer(separator='')
 space_mwe_tokenizer = MWETokenizer(separator=' ')
@@ -95,10 +105,14 @@ for token in space_mwes:
     space_mwe_tokenizer.add_mwe(token)
 
 #tokenize sentences
-def tokenize_java(java_representation):
-    line = ' . '.join(java_representation.split('.'))
-    line = ' / '.join(line.split('/'))
-    line = ' ++ '.join(line.split('++'))
+def tokenize_java(representation):
+    line = representation
+    for char in chars_to_remove:
+        if char in line:
+            line = line.replace(char,' ')
+    for seq in seqs_to_insert_spaces_for:
+        if seq in line:
+            line = (' '+seq+' ').join(line.split(seq))
     word_level = word_tokenize(line)
     no_space_level = no_space_mwe_tokenizer.tokenize(word_level)
     space_level = space_mwe_tokenizer.tokenize(no_space_level)
@@ -113,6 +127,7 @@ counts = list(list(zip(*tokenized_counter.most_common()))[1])
 word_index = dict(zip(tokens, range(1,len(tokens)+1)))
 
 #JCH todo: add this ability to substitude in <UNK> tokens
+#i should probably get rid of the () and {} symbols...
 
 #encode to number
 #order from largest to smallest, so bigger tokens get applied first
@@ -130,4 +145,3 @@ token_key = dict(zip( range(1,len(tokens)+1),tokens))
 file_name = 'java_token_key.pkl'
 with open(output_file_path + file_name, 'wb') as fp:
     pickle.dump(token_key, fp)
-
