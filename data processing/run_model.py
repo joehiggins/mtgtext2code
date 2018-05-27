@@ -33,62 +33,84 @@ from keras.layers import TimeDistributed
 from keras.callbacks import ModelCheckpoint
 from keras.models import load_model
 from nltk.translate.bleu_score import corpus_bleu
-from unicodedata import normalize
-import tensorflow as tf
+import pickle
 
-file_path = '/Users/josephhiggins/Documents/mtg/mungeddata/'
-file_name = 'merged_text_and_code.pkl'
-data = pd.read_pickle(file_path + file_name)
+def open_pickle(file_name):
+    file_path = '/Users/josephhiggins/Documents/mtg/mungeddata/'
+    return pickle.load( open(file_path+file_name, "rb" ) )
+
+sequences_java_full = open_pickle('sequenced_java.pkl')
+sequences_text_full = open_pickle('sequenced_text.pkl')
+token_key_java_original = open_pickle('java_token_key.pkl')
+token_key_text_original = open_pickle('text_token_key.pkl')
 
 ###parameters
-num_words = None #None is default
-num_examples = 1
+num_examples = 2
 epoch_num = 1000
 batch_size = 1
 
 ###test small sample
-data = data[0:num_examples]
+sequences_text = sequences_text_full[0:num_examples]
+sequences_java = sequences_java_full[0:num_examples]
 
-# encode and pad sequences
-def pad_sequences(lines):
-    max_length = max(list(map(lambda x: len(x), tokenized)))
-    X = pad_sequences(tokenized, maxlen=max_length, padding='post')
+#update tokens based on the data sample we use
+##add spaces
+
+##get unique tokens in data subset
+def remove_keys_not_used(sequences, token_key):
+    flat = [item for sublist in sequences for item in sublist]
+    tokens_to_remove = set(token_key.keys()).difference(set(flat))
+    for token in tokens_to_remove:
+        token_key.pop(token, None)
+    return token_key
+
+token_key_text = remove_keys_not_used(sequences_text, token_key_text_original.copy())
+token_key_java = remove_keys_not_used(sequences_java, token_key_java_original.copy())
+
+##reindex keys
+def re_sequence(token_list, mapping):
+    return [mapping[token] for token in token_list]
+
+new_idxs_text = dict((zip(token_key_text.keys(), range(1,len(token_key_text)+1))))
+new_idxs_java = dict((zip(token_key_java.keys(), range(1,len(token_key_java)+1))))
+sequences_text = list(map(lambda x: re_sequence(x, new_idxs_text), sequences_text))
+sequences_java = list(map(lambda x: re_sequence(x, new_idxs_java), sequences_java))
+
+##remake the token keys
+token_key_text = dict(zip(range(1,len(token_key_text)+1), token_key_text.values()))
+token_key_java = dict(zip(range(1,len(token_key_java)+1), token_key_java.values()))
+
+##add the empty padding key 
+token_key_java.update({0:''})
+token_key_text.update({0:''})
+vocab_size_java = len(token_key_java)
+vocab_size_text = len(token_key_text)
+    
+# pad sequences
+def pad_sequences_wrapper(sequences):
+    max_length = max(list(map(lambda x: len(x), sequences)))
+    X = pad_sequences(sequences, maxlen=max_length, padding='post')
     return X, max_length
 
-#clean text into utf-8
-data_text_clean = list(map(lambda x: utf8_encode(x), data['mtgencoded_text']))
-data_java_clean = list(map(lambda x: utf8_encode(x), data['java_code']))
-
-# prepare tokenizers
-text_tokenizer = create_tokenizer(data_text_clean)
-java_tokenizer = create_tokenizer(data_java_clean)
-
-if(num_words is None):
-    text_vocab_size = len(text_tokenizer.word_index) + 1
-    java_vocab_size = len(java_tokenizer.word_index) + 1
-else: 
-    text_vocab_size = num_words
-    java_vocab_size = num_words
-    
 #encode sequences to tokenizers
-X, x_max_len = encode_sequences(text_tokenizer, data_text_clean)
-Y, y_max_len = encode_sequences(java_tokenizer, data_java_clean)
+X, x_max_len = pad_sequences_wrapper(sequences_text)
+Y, y_max_len = pad_sequences_wrapper(sequences_java)
 Y = np.expand_dims(Y,-1)
 
 #print out stats of cleaned and tokenized inputs
-text_length = x_max_len
-java_length = y_max_len
-print('Text Vocabulary Size: %d' % text_vocab_size)
-print('Text Max Length: %d' % (text_length))
-print('Java Vocabulary Size: %d' % java_vocab_size)
-print('Java Max Length: %d' % (java_length))
+max_length_text = x_max_len
+max_length_java = y_max_len
+print('Text Vocabulary Size: %d' % vocab_size_text)
+print('Text Max Length (token number): %d' % (max_length_text))
+print('Java Vocabulary Size: %d' % vocab_size_java )
+print('Java Max Length (token number): %d' % (max_length_java))
 
 #test/validation split
-split_idx = round(len(data) * 0.90)
+split_idx = round(num_examples * 0.90)
 trainX = X[0:split_idx]
-validX = X[split_idx:len(data)]
+validX = X[split_idx:num_examples]
 trainY = Y[0:split_idx]
-validY = Y[split_idx:len(data)]
+validY = Y[split_idx:num_examples]
 
 
 # define NMT model
@@ -102,10 +124,10 @@ def define_model(src_vocab, tar_vocab, src_timesteps, tar_timesteps, n_units):
     return model
 
 # define model
-model = define_model(text_vocab_size, 
-                     java_vocab_size, 
-                     text_length, 
-                     java_length, 
+model = define_model(vocab_size_text, 
+                     vocab_size_java, 
+                     max_length_text, 
+                     max_length_java, 
                      256)
 
 model.compile(optimizer='adam', loss='sparse_categorical_crossentropy')
@@ -128,25 +150,21 @@ model.fit(trainX, trainY,
           validation_data=(validX, validY), 
           verbose=1)
 
+
 #Evaluation
 #model = load_model('model.h5')
-# map an integer to a word
-def word_for_id(integer, tokenizer):
-	for word, index in tokenizer.word_index.items():
-		if index == integer:
-			return word
-	return None
+def unsequence(sequence):
+    if sum(sequence) == 0:
+        return ''
+    token_list = [token_key_java[token] for token in sequence]    
+    return ' '.join(token_list)
 
-def predict_sequence(model, tokenizer, source):
-	prediction = model.predict(source, verbose=0)[0]
-	integers = [np.argmax(vector) for vector in prediction]
-	target = list()
-	for i in integers:
-		word = word_for_id(i, tokenizer)
-		if word is None:
-			break
-		target.append(word)
-	return ' '.join(target)
+
+def predict_sequence(model, text_sequence):
+    seq = text_sequence.reshape((1, text_sequence.shape[0]))
+    prediction = model.predict(seq, verbose=0)[0]
+    integers = [np.argmax(vector) for vector in prediction]
+    return unsequence(integers)
 
 # evaluate the skill of the model
 def evaluate_model(model, tokenizer, sources, raw_dataset):
@@ -178,19 +196,18 @@ evaluate_model(model, java_tokenizer, validX, list(zip(data_java_clean[split_idx
 '''
 
 
-
 def compare_prediction(index):
     if(index < split_idx):
-        ex = trainX[index].reshape((1, trainX[index].shape[0]))
+        ex = trainX[index]
     else:
         v_index = index - split_idx
-        ex = validX[v_index].reshape((1, validX[v_index].shape[0]))
+        ex = validX[v_index]
     print("INPUT:")
-    print(data_text_clean[index])
+    print(' '.join(re_sequence(sequences_text_full[index], token_key_text_original)))
     print("TARGET:")
-    print(data_java_clean[index])
+    print(' '.join(re_sequence(sequences_java_full[index], token_key_java_original)))
     print("OUTPUT:")
-    print(predict_sequence(model, java_tokenizer, ex))
+    print(predict_sequence(model, ex))
 
 compare_prediction(0)
 compare_prediction(1)

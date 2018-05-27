@@ -110,7 +110,7 @@ tokenized_counter = Counter(tokenized_flat)
 tokens = list(list(zip(*tokenized_counter.most_common()))[0])
 counts = list(list(zip(*tokenized_counter.most_common()))[1])
 
-word_index = dict(zip(tokens, range(0,len(tokens))))
+word_index = dict(zip(tokens, range(1,len(tokens)+1)))
 
 #JCH todo: add this ability to substitude in <UNK> tokens
 
@@ -125,4 +125,9 @@ output_file_path = '/Users/josephhiggins/Documents/mtg/mungeddata/'
 file_name = 'sequenced_java.pkl'
 with open(output_file_path + file_name, 'wb') as fp:
     pickle.dump(sequenced, fp)
+
+token_key = dict(zip( range(1,len(tokens)+1),tokens))
+file_name = 'java_token_key.pkl'
+with open(output_file_path + file_name, 'wb') as fp:
+    pickle.dump(token_key, fp)
 
