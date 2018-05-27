@@ -49,24 +49,11 @@ batch_size = 1
 ###test small sample
 data = data[0:num_examples]
 
-# fit a tokenizer
-def create_tokenizer(lines):
-    tokenizer = Tokenizer(
-        num_words=num_words, #None is default
-        #filters='!"#$%&()*+,-./:;<=>?@[\]^_`{|}~ ', 
-        lower=True, 
-        #split=' ', 
-        char_level=False)
-    tokenizer.fit_on_texts(lines)
-    return tokenizer
-
 # encode and pad sequences
-def encode_sequences(tokenizer, lines):
-    tokenized = tokenizer.texts_to_sequences(lines)
+def pad_sequences(lines):
     max_length = max(list(map(lambda x: len(x), tokenized)))
     X = pad_sequences(tokenized, maxlen=max_length, padding='post')
     return X, max_length
-
 
 #clean text into utf-8
 data_text_clean = list(map(lambda x: utf8_encode(x), data['mtgencoded_text']))

@@ -10,7 +10,8 @@ from nltk.tokenize import word_tokenize
 from nltk.tokenize import MWETokenizer
 from unicodedata import normalize
 from collections import Counter
-import re
+import pickle
+
 
 file_path = '/Users/josephhiggins/Documents/mtg/mungeddata/'
 file_name = 'merged_text_and_code.pkl'
@@ -115,37 +116,13 @@ word_index = dict(zip(tokens, range(0,len(tokens))))
 
 #encode to number
 #order from largest to smallest, so bigger tokens get applied first
-
 def sequence_java_tokens(token_list):
     return [word_index[token] for token in token_list]
 
 sequenced = list(map(lambda x: sequence_java_tokens(x), encoded_java_tokenized))
     
-
-
-
 output_file_path = '/Users/josephhiggins/Documents/mtg/mungeddata/'
-file_name = 'input_data.pkl'
-text_code.to_pickle(output_file_path + file_name)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+file_name = 'sequenced_java.pkl'
+with open(output_file_path + file_name, 'wb') as fp:
+    pickle.dump(sequenced, fp)
 
