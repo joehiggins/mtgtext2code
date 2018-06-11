@@ -16,6 +16,7 @@ from parsing import Grammar, Rule
 #http://minimaxir.com/2017/04/char-embeddings/, Max Woolf (@minimaxir)
 #https://github.com/minimaxir/char-embeddings/blob/master/create_magic_text.py
 #https://machinelearningmastery.com/develop-neural-machine-translation-system-keras/
+#https://machinelearningmastery.com/encoder-decoder-long-short-term-memory-networks/
 
 #JCH ideas:
 ##dont predict parens and brackets, since those can be filled in with syntax
@@ -24,9 +25,11 @@ from parsing import Grammar, Rule
 ##sippycup
 
 
+import sys, os
+sys.path.append('/Users/josephhiggins/Documents/mtg/mtgtext2code/data processing/')
+
 import pandas as pd
 import numpy as np
-import sys
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 from keras.utils import to_categorical
@@ -40,6 +43,7 @@ from keras.layers import TimeDistributed
 from keras.callbacks import ModelCheckpoint
 from keras.models import load_model
 from nltk.translate.bleu_score import corpus_bleu
+from attention_decoder import AttentionDecoder
 import pickle
 
 def open_pickle(file_name):
@@ -52,11 +56,11 @@ token_key_java_original = open_pickle('java_token_key.pkl')
 token_key_text_original = open_pickle('text_token_key.pkl')
 
 ###parameters
-num_examples = 5 #len(sequences_text_full)
+num_examples = len(sequences_text_full) #1
 num_words_text = 350
 num_words_java = 350
-epoch_num = 1000
-batch_size = 1
+epoch_num = 1
+batch_size = 256
 
 ###take a subset of the data based on num_examples
 sequences_text = sequences_text_full[0:num_examples]
@@ -141,6 +145,7 @@ trainY = Y[0:split_idx]
 validY = Y[split_idx:num_examples]
 
 
+'''
 # define NMT model
 def define_model(src_vocab, tar_vocab, src_timesteps, tar_timesteps, n_units):
     model = Sequential()
@@ -149,6 +154,28 @@ def define_model(src_vocab, tar_vocab, src_timesteps, tar_timesteps, n_units):
     model.add(RepeatVector(tar_timesteps))
     model.add(LSTM(n_units, return_sequences=True))
     model.add(TimeDistributed(Dense(tar_vocab, activation='softmax')))
+    return model
+'''
+'''
+# define the encoder-decoder with attention model
+def attention_model(n_timesteps_in, n_features):
+	model = Sequential()
+	model.add(LSTM(150, input_shape=(n_timesteps_in, n_features), return_sequences=True))
+	model.add(AttentionDecoder(150, n_features))
+	model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc'])
+	return model
+'''
+n_features = vocab_size_text
+n_timesteps_in = 5
+n_timesteps_out = 2
+n_repeats = 10
+
+def define_model(src_vocab, tar_vocab, src_timesteps, tar_timesteps, n_units):
+    model = Sequential()
+    model.add(Embedding(src_vocab, n_units, input_length=src_timesteps, mask_zero=True))
+    model.add(LSTM(n_units))
+    model.add(RepeatVector(tar_timesteps))
+    model.add(AttentionDecoder(n_units, n_features))
     return model
 
 # define model
@@ -172,7 +199,7 @@ checkpoint = ModelCheckpoint(filename,
                              mode='min')
 
 model.fit(trainX, trainY, 
-          #callbacks=[checkpoint],
+          callbacks=[checkpoint],
           epochs=epoch_num,
           batch_size=batch_size, 
           validation_data=(validX, validY), 
@@ -187,44 +214,13 @@ def unsequence(sequence):
     token_list = [token_key_java[token] for token in sequence]    
     return ' '.join(token_list)
 
-
 def predict_sequence(model, text_sequence):
     seq = text_sequence.reshape((1, text_sequence.shape[0]))
     prediction = model.predict(seq, verbose=0)[0]
     integers = [np.argmax(vector) for vector in prediction]
     return unsequence(integers)
 
-# evaluate the skill of the model
-def evaluate_model(model, tokenizer, sources, raw_dataset):
-    actual, predicted = list(), list()
-    for i, source in enumerate(sources):
-        # translate encoded source text
-        source = source.reshape((1, source.shape[0]))
-        translation = predict_sequence(model, tokenizer, source)
-        print(i)
-        raw_target, raw_src = raw_dataset[i]
-        if i < 10:
-            print('src=[%s], target=[%s], predicted=[%s]' % (raw_src, raw_target, translation))
-        actual.append(raw_target.split())
-        predicted.append(translation.split())
-    # calculate BLEU score
-    print('BLEU-1: %f' % corpus_bleu(actual, predicted, weights=(1.0, 0, 0, 0)))
-    print('BLEU-2: %f' % corpus_bleu(actual, predicted, weights=(0.5, 0.5, 0, 0)))
-    print('BLEU-3: %f' % corpus_bleu(actual, predicted, weights=(0.3, 0.3, 0.3, 0)))
-    print('BLEU-4: %f' % corpus_bleu(actual, predicted, weights=(0.25, 0.25, 0.25, 0.25)))
-
-'''
-evaluate_model(model, java_tokenizer, trainX, list(zip(data_java_clean[0:split_idx],
-                                                       data_text_clean[0:split_idx])))
-
-
-evaluate_model(model, java_tokenizer, validX, list(zip(data_java_clean[split_idx:len(data)],
-                                                       data_text_clean[split_idx:len(data)])))
-
-'''
-
-
-def compare_prediction(index):
+def compare_single_prediction(index):
     if(index < split_idx):
         ex = trainX[index]
     else:
@@ -238,22 +234,41 @@ def compare_prediction(index):
     print("OUTPUT:")
     print(predict_sequence(model, ex))
 
-compare_prediction(0)
-compare_prediction(1)
-compare_prediction(2)
-compare_prediction(3)
-compare_prediction(4)
 
-#todo: replace card name instances with @ in java
-#todo: keep brackets and parens in the java text
+def evaluate_model(model, target_java, text_sequences):
+    actual, predicted = list(), list()
+    for i, source in enumerate(text_sequences):
+        # translate encoded source text
+        translation = predict_sequence(model, source).split()
+        print(i)
+        target = [' '.join(re_sequence(target_java[i], token_key_java)).split()]
+        if i < 10:
+            print('target=[%s],\n predicted=[%s]' % (target, translation))
+        actual.append(target)
+        predicted.append(translation)
+    # calculate BLEU score
+    print('BLEU-1: %f' % corpus_bleu(actual, predicted, weights=(1.0, 0, 0, 0)))
+    print('BLEU-2: %f' % corpus_bleu(actual, predicted, weights=(0.5, 0.5, 0, 0)))
+    print('BLEU-3: %f' % corpus_bleu(actual, predicted, weights=(0.3, 0.3, 0.3, 0)))
+    print('BLEU-4: %f' % corpus_bleu(actual, predicted, weights=(0.25, 0.25, 0.25, 0.25)))
+
+
+compare_single_prediction(0)
+
+evaluate_model(model, sequences_java[0:split_idx], trainX)
+evaluate_model(model, sequences_java[split_idx:num_examples], validX)
+
+
+
+#evaluate_model(model, sequences_java[split_idx:split_idx+1], validX[0:1])
+
 '''
-from keras.models import model_from_json
-model_json = model.to_json()
-with open("model.json", "w") as json_file:
-    json_file.write(model_json)
-# serialize weights to HDF5
-model.save_weights("model.h5")
-print("Saved model to disk")
+file_path = '/Users/josephhiggins/Documents/mtg/mtgtext2code/models/'
+file_name = 'hi_model'
+model.save(file_path+file_name+'.hdf5')
+loaded_model=load_model(file_path+file_name+'.hdf5')
+
+#model = loaded_model
 '''
 
 

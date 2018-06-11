@@ -17,10 +17,18 @@ file_path = '/Users/josephhiggins/Documents/mtg/mungeddata/'
 file_name = 'merged_text_and_code.pkl'
 data = pd.read_pickle(file_path + file_name)
 '''
-idx = data[data['card_name'] == 'sphinxofthechimes'].index[0]
+idx = data[data['card_name'] == 'prodigalsorcerer'].index[0]
 print(data.loc[idx]['text'])
 print(data.loc[idx]['java_code'])
 print(java_encoded[idx])
+
+print(java_encoded[621])
+print(encoded_java_tokenized[621])
+print(sequenced[621])
+
+for i in range(0,len(java_encoded)):
+    if java_encoded[i].find('prodigalsorcerer') > -1:
+        print(i)
 
 for i in range(0,len(stripped_java)):
     if stripped_java[i].find('discardtwononlandcardswiththesamenamecost') > -1:
@@ -41,6 +49,7 @@ def utf8_encode(line):
     return line
 
 java_encoded = list(map(lambda x: utf8_encode(x), java_encoded))
+
 
 #replace names with symbol
 ##which symbol safe to use?
@@ -104,6 +113,9 @@ for token in no_space_mwes:
 for token in space_mwes:
     space_mwe_tokenizer.add_mwe(token)
 
+def add_starts_stops(token_list):
+    return ['<START>'] + token_list + ['<STOP>']
+
 #tokenize sentences
 def tokenize_java(representation):
     line = representation
@@ -116,7 +128,8 @@ def tokenize_java(representation):
     word_level = word_tokenize(line)
     no_space_level = no_space_mwe_tokenizer.tokenize(word_level)
     space_level = space_mwe_tokenizer.tokenize(no_space_level)
-    return space_level
+    start_stop_level = add_starts_stops(space_level)
+    return start_stop_level
 
 encoded_java_tokenized = list(map(lambda x: tokenize_java(x), java_encoded))
 tokenized_flat = [item for sublist in encoded_java_tokenized for item in sublist]

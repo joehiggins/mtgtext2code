@@ -10,6 +10,13 @@ Created on Sat May 26 16:53:11 2018
 for i in range(0,len(text_encoded)):
     if text_encoded[i].find('EEEE') > -1:
         print(str(i) + ": " + text_encoded[i])
+
+idx = data[data['card_name'] == 'prodigalsorcerer'].index[0]
+test = data['mtgencoded_text'][idx]
+test = test.replace(data['card_name_self'][idx], '$')
+print(tokenize(test))
+print(sequenced_tokens(tokenize(test)))
+
 '''
 
 import pandas as pd
@@ -79,6 +86,9 @@ for token in no_space_mwes:
 for token in space_mwes:
     space_mwe_tokenizer.add_mwe(token)
     
+def add_starts_stops(token_list):
+    return ['<START>'] + token_list + ['<STOP>']
+    
 #tokenize sentences
 def tokenize(representation):
     line = representation
@@ -88,10 +98,8 @@ def tokenize(representation):
     word_level = word_tokenize(line)
     no_space_level = no_space_mwe_tokenizer.tokenize(word_level)
     space_level = space_mwe_tokenizer.tokenize(no_space_level)
-    return space_level
-
-test = text_encoded[5]
-tokenize(test)
+    start_stop_level = add_starts_stops(space_level)
+    return start_stop_level
 
 encoded_text_tokenized = list(map(lambda x: tokenize(x), text_encoded))
 tokenized_flat = [item for sublist in encoded_text_tokenized for item in sublist]
